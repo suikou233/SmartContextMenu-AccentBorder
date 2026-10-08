@@ -261,6 +261,22 @@ namespace SmartContextMenu.Native
         public static extern bool UnhookWinEvent(IntPtr hWinEventHook);
 
 
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool UpdateLayeredWindow(IntPtr hwnd, IntPtr hdcDst, ref Point pptDst, ref Structs.NativeSize psize, IntPtr hdcSrc, ref Point pptSrc, int crKey, ref BlendFunction pblend, int dwFlags);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool IsWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool IsIconic(IntPtr hWnd);
+
+        /// <summary>仅 Windows 10 1607+ 存在，调用前需 try/catch。</summary>
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern uint GetDpiForWindow(IntPtr hwnd);
+
         public static IntPtr GetClassLongPtr(IntPtr hWnd, int nIndex) => IntPtr.Size > 4 ? GetClassLongPtr64(hWnd, nIndex) : new IntPtr(GetClassLongPtr32(hWnd, nIndex));
 
         public static readonly IntPtr HWND_TOP = new(0);

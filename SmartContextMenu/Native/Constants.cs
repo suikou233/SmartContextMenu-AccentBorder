@@ -130,6 +130,23 @@
         public const int STD_OUTPUT_HANDLE = -11;
 
         public const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+        public const int DWMWA_EXCLUDED_FROM_PEEK = 12;
+        public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+
+        // UpdateLayeredWindow
+        public const int ULW_ALPHA = 0x00000002;
+        public const byte AC_SRC_OVER = 0x00;
+        public const byte AC_SRC_ALPHA = 0x01;
+
+        // CreateDIBSection
+        public const uint DIB_RGB_COLORS = 0;
+        public const int BI_RGB = 0;
+
+        // SetWindowPos（补充）
+        public const uint SWP_NOZORDER = 0x0004;
+        public const uint SWP_SHOWWINDOW = 0x0040;
+        public const uint SWP_HIDEWINDOW = 0x0080;
+        public const uint SWP_NOREDRAW = 0x0008;
         public const int CREATE_NO_WINDOW = 0x08000000;
         public const int STARTF_USESHOWWINDOW = 0x00000001;
 
@@ -138,10 +155,17 @@
         public const int SEND_CHILD_HANDLE = 1;
 
         public const uint WINEVENT_OUTOFCONTEXT = 0;
+        public const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
         public const uint EVENT_SYSTEM_MINIMIZESTART = 0x0016;
         public const uint EVENT_SYSTEM_MINIMIZEEND = 0x0017;
         public const uint EVENT_SYSTEM_FOREGROUND = 3;
         public const uint EVENT_OBJECT_DESTROY = 0x8001;
+
+        /// <summary>窗口位置/尺寸变化。PowerToys 用它做到边框实时跟随，不靠轮询。</summary>
+        public const uint EVENT_OBJECT_LOCATIONCHANGE = 0x800B;
+
+        /// <summary>用户拖动/缩放窗口结束。</summary>
+        public const uint EVENT_SYSTEM_MOVESIZEEND = 0x000B;
         public const int OBJID_WINDOW = 0;
 
         public const int CURSOR_SHOWING = 0x00000001;

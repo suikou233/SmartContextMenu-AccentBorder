@@ -170,6 +170,18 @@ namespace SmartContextMenu.Settings
             settings.Dimmer.Color = dimmerElement.Attribute("color") != null ? dimmerElement.Attribute("color").Value : string.Empty;
             settings.Dimmer.Transparency = dimmerElement.Attribute("transparency") != null ? int.Parse(dimmerElement.Attribute("transparency").Value) : 0;
 
+            var windowBorderElement = document.XPathSelectElement("/smartContextMenu/windowBorder");
+            if (windowBorderElement != null)
+            {
+                settings.WindowBorder.Enabled = ReadBoolAttribute(windowBorderElement, "enabled", WindowBorderSettings.DefaultEnabled);
+                settings.WindowBorder.UseAccentColor = ReadBoolAttribute(windowBorderElement, "accentColor", WindowBorderSettings.DefaultUseAccentColor);
+                settings.WindowBorder.Color = ReadStringAttribute(windowBorderElement, "color", WindowBorderSettings.DefaultColor);
+                settings.WindowBorder.Thickness = ReadIntAttribute(windowBorderElement, "thickness", WindowBorderSettings.DefaultThickness);
+                settings.WindowBorder.Opacity = ReadIntAttribute(windowBorderElement, "opacity", WindowBorderSettings.DefaultOpacity);
+                settings.WindowBorder.RoundCorners = ReadBoolAttribute(windowBorderElement, "roundCorners", WindowBorderSettings.DefaultRoundCorners);
+                settings.WindowBorder.Normalize();
+            }
+
             var sizerElement = document.XPathSelectElement("/smartContextMenu/sizer");
             settings.Sizer = sizerElement.Attribute("type") != null && !string.IsNullOrEmpty(sizerElement.Attribute("type").Value) ? (WindowSizerType)int.Parse(sizerElement.Attribute("type").Value) : WindowSizerType.WindowWithMargins;
 
@@ -279,6 +291,14 @@ namespace SmartContextMenu.Settings
                                      new XAttribute("color", settings.Dimmer.Color),
                                      new XAttribute("transparency", settings.Dimmer.Transparency.ToString())
                                  ),
+                                 new XElement("windowBorder",
+                                     new XAttribute("enabled", settings.WindowBorder.Enabled.ToString().ToLower()),
+                                     new XAttribute("accentColor", settings.WindowBorder.UseAccentColor.ToString().ToLower()),
+                                     new XAttribute("color", settings.WindowBorder.Color),
+                                     new XAttribute("thickness", settings.WindowBorder.Thickness.ToString()),
+                                     new XAttribute("opacity", settings.WindowBorder.Opacity.ToString()),
+                                     new XAttribute("roundCorners", settings.WindowBorder.RoundCorners.ToString().ToLower())
+                                 ),
                                  new XElement("sizer",
                                      new XAttribute("type", ((int)settings.Sizer).ToString())
                                  ),
@@ -292,6 +312,34 @@ namespace SmartContextMenu.Settings
                                      new XAttribute("name", settings.LanguageName.ToLower())
                                  )));
             FileUtils.Save(fileName, document);
+        }
+
+        private static bool ReadBoolAttribute(XElement element, string attributeName, bool defaultValue)
+        {
+            var attribute = element.Attribute(attributeName);
+            if (attribute == null || string.IsNullOrEmpty(attribute.Value))
+            {
+                return defaultValue;
+            }
+
+            return string.Equals(attribute.Value, "true", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static int ReadIntAttribute(XElement element, string attributeName, int defaultValue)
+        {
+            var attribute = element.Attribute(attributeName);
+            if (attribute == null || string.IsNullOrEmpty(attribute.Value))
+            {
+                return defaultValue;
+            }
+
+            return int.TryParse(attribute.Value, out var value) ? value : defaultValue;
+        }
+
+        private static string ReadStringAttribute(XElement element, string attributeName, string defaultValue)
+        {
+            var attribute = element.Attribute(attributeName);
+            return attribute == null || string.IsNullOrEmpty(attribute.Value) ? defaultValue : attribute.Value;
         }
 
         private static KeyboardShortcut ReadShortcut(XElement element)

@@ -15,6 +15,19 @@ namespace SmartContextMenu.Forms
         private ApplicationSettings _settings;
         private LanguageManager _languageManager;
 
+        private TabPage _tabpWindowBorder;
+        private GroupBox _grpbWindowBorder;
+        private CheckBox _chkWindowBorderEnabled;
+        private CheckBox _chkWindowBorderAccentColor;
+        private Label _lblWindowBorderColor;
+        private TextBox _txtWindowBorderColor;
+        private Button _btnWindowBorderColor;
+        private Label _lblWindowBorderThickness;
+        private NumericUpDown _nudWindowBorderThickness;
+        private Label _lblWindowBorderOpacity;
+        private NumericUpDown _nudWindowBorderOpacity;
+        private CheckBox _chkWindowBorderRoundCorners;
+
         public event EventHandler<EventArgs<ApplicationSettings>> OkClick;
 
         public ApplicationSettingsForm(ApplicationSettings settings)
@@ -153,6 +166,186 @@ namespace SmartContextMenu.Forms
             FillGridViewByItems(gvHotkeys, items);
             FillGridViewByWindowSizeItems(gvWindowSize, _settings.MenuItems.WindowSizeItems);
             FillGridViewByStartProgramItems(gvStartProgram, _settings.MenuItems.StartProgramItems);
+
+            InitializeWindowBorderControls();
+        }
+
+        /// <summary>
+        /// 语言文件里没有对应条目时返回空串，这里统一回落到英文，
+        /// 避免未翻译的语言出现空白标签。
+        /// </summary>
+        private string GetBorderString(string name, string fallback)
+        {
+            var value = _languageManager.GetString(name);
+            return string.IsNullOrEmpty(value) ? fallback : value;
+        }
+
+        /// <summary>
+        /// 构建「置顶边框」选项卡。
+        /// 为了让新增功能不侵入 Designer 生成的文件，控件全部用代码创建。
+        /// </summary>
+        private void InitializeWindowBorderControls()
+        {
+            var border = _settings.WindowBorder;
+            border.Normalize();
+
+            _tabpWindowBorder = new TabPage
+            {
+                Location = new Point(4, 25),
+                Padding = new Padding(3),
+                Size = new Size(745, 483),
+                UseVisualStyleBackColor = true,
+                Text = GetBorderString("tab_settings_window_border", "Always On Top Border")
+            };
+
+            _grpbWindowBorder = new GroupBox
+            {
+                Location = new Point(12, 12),
+                Size = new Size(721, 256),
+                TabStop = false,
+                Text = GetBorderString("grpb_window_border", "Border appearance")
+            };
+
+            _chkWindowBorderEnabled = new CheckBox
+            {
+                AutoSize = true,
+                Location = new Point(20, 32),
+                Text = GetBorderString("chk_window_border_enabled", "Show an accent color border when a window is always on top"),
+                Checked = border.Enabled
+            };
+            _chkWindowBorderEnabled.CheckedChanged += WindowBorderEnabledChanged;
+
+            _chkWindowBorderAccentColor = new CheckBox
+            {
+                AutoSize = true,
+                Location = new Point(20, 68),
+                Text = GetBorderString("chk_window_border_accent", "Use the system accent color"),
+                Checked = border.UseAccentColor
+            };
+            _chkWindowBorderAccentColor.CheckedChanged += WindowBorderAccentColorChanged;
+
+            _lblWindowBorderColor = new Label
+            {
+                AutoSize = true,
+                Location = new Point(20, 108),
+                Text = GetBorderString("lbl_window_border_color", "Border color")
+            };
+
+            _txtWindowBorderColor = new TextBox
+            {
+                Location = new Point(240, 104),
+                Size = new Size(120, 23),
+                Text = border.Color
+            };
+
+            _btnWindowBorderColor = new Button
+            {
+                Location = new Point(368, 103),
+                Size = new Size(90, 25),
+                Text = GetBorderString("btn_window_border_color", "Choose...")
+            };
+            _btnWindowBorderColor.Click += WindowBorderColorClick;
+
+            _lblWindowBorderThickness = new Label
+            {
+                AutoSize = true,
+                Location = new Point(20, 148),
+                Text = GetBorderString("lbl_window_border_thickness", "Thickness (px)")
+            };
+
+            _nudWindowBorderThickness = new NumericUpDown
+            {
+                Location = new Point(240, 144),
+                Size = new Size(80, 23),
+                Minimum = WindowBorderSettings.MinThickness,
+                Maximum = WindowBorderSettings.MaxThickness
+            };
+            _nudWindowBorderThickness.Value = Math.Min(Math.Max(border.Thickness, WindowBorderSettings.MinThickness), WindowBorderSettings.MaxThickness);
+
+            _lblWindowBorderOpacity = new Label
+            {
+                AutoSize = true,
+                Location = new Point(20, 188),
+                Text = GetBorderString("lbl_window_border_opacity", "Opacity (%)")
+            };
+
+            _nudWindowBorderOpacity = new NumericUpDown
+            {
+                Location = new Point(240, 184),
+                Size = new Size(80, 23),
+                Minimum = WindowBorderSettings.MinOpacity,
+                Maximum = WindowBorderSettings.MaxOpacity
+            };
+            _nudWindowBorderOpacity.Value = Math.Min(Math.Max(border.Opacity, WindowBorderSettings.MinOpacity), WindowBorderSettings.MaxOpacity);
+
+            _chkWindowBorderRoundCorners = new CheckBox
+            {
+                AutoSize = true,
+                Location = new Point(20, 222),
+                Text = GetBorderString("chk_window_border_round_corners", "Follow the window corner rounding"),
+                Checked = border.RoundCorners
+            };
+
+            _grpbWindowBorder.Controls.Add(_chkWindowBorderEnabled);
+            _grpbWindowBorder.Controls.Add(_chkWindowBorderAccentColor);
+            _grpbWindowBorder.Controls.Add(_lblWindowBorderColor);
+            _grpbWindowBorder.Controls.Add(_txtWindowBorderColor);
+            _grpbWindowBorder.Controls.Add(_btnWindowBorderColor);
+            _grpbWindowBorder.Controls.Add(_lblWindowBorderThickness);
+            _grpbWindowBorder.Controls.Add(_nudWindowBorderThickness);
+            _grpbWindowBorder.Controls.Add(_lblWindowBorderOpacity);
+            _grpbWindowBorder.Controls.Add(_nudWindowBorderOpacity);
+            _grpbWindowBorder.Controls.Add(_chkWindowBorderRoundCorners);
+
+            _tabpWindowBorder.Controls.Add(_grpbWindowBorder);
+            tabMain.Controls.Add(_tabpWindowBorder);
+
+            UpdateWindowBorderControlState();
+        }
+
+        private void UpdateWindowBorderControlState()
+        {
+            var enabled = _chkWindowBorderEnabled.Checked;
+            var useAccentColor = _chkWindowBorderAccentColor.Checked;
+
+            _chkWindowBorderAccentColor.Enabled = enabled;
+            _chkWindowBorderRoundCorners.Enabled = enabled;
+            _lblWindowBorderColor.Enabled = enabled && !useAccentColor;
+            _txtWindowBorderColor.Enabled = enabled && !useAccentColor;
+            _btnWindowBorderColor.Enabled = enabled && !useAccentColor;
+            _lblWindowBorderThickness.Enabled = enabled;
+            _nudWindowBorderThickness.Enabled = enabled;
+            _lblWindowBorderOpacity.Enabled = enabled;
+            _nudWindowBorderOpacity.Enabled = enabled;
+        }
+
+        private void WindowBorderEnabledChanged(object sender, EventArgs e) => UpdateWindowBorderControlState();
+
+        private void WindowBorderAccentColorChanged(object sender, EventArgs e) => UpdateWindowBorderControlState();
+
+        private void WindowBorderColorClick(object sender, EventArgs e)
+        {
+            var color = Color.Black;
+            try
+            {
+                color = ColorTranslator.FromHtml(_txtWindowBorderColor.Text);
+            }
+            catch
+            {
+            }
+
+            var dialog = new ColorDialog
+            {
+                AllowFullOpen = true,
+                AnyColor = true,
+                FullOpen = true,
+                Color = color
+            };
+
+            if (dialog.ShowDialog() != DialogResult.Cancel)
+            {
+                _txtWindowBorderColor.Text = ColorTranslator.ToHtml(dialog.Color);
+            }
         }
 
         private void GridViewStartProgramCellContentClick(object sender, DataGridViewCellEventArgs e)
@@ -516,6 +709,14 @@ namespace SmartContextMenu.Forms
             settings.MenuDisabledInterval = _settings.MenuDisabledInterval;
             settings.LowLevelHooksTimeout = _settings.LowLevelHooksTimeout;
             settings.LanguageName = listBoxLanguage.SelectedValue == null ? string.Empty : listBoxLanguage.SelectedValue.ToString();
+
+            settings.WindowBorder.Enabled = _chkWindowBorderEnabled.Checked;
+            settings.WindowBorder.UseAccentColor = _chkWindowBorderAccentColor.Checked;
+            settings.WindowBorder.Color = _txtWindowBorderColor.Text;
+            settings.WindowBorder.Thickness = (int)_nudWindowBorderThickness.Value;
+            settings.WindowBorder.Opacity = (int)_nudWindowBorderOpacity.Value;
+            settings.WindowBorder.RoundCorners = _chkWindowBorderRoundCorners.Checked;
+            settings.WindowBorder.Normalize();
 
             if (txtNextHotkeys.Tag is KeyboardShortcut nextShortcut)
             {

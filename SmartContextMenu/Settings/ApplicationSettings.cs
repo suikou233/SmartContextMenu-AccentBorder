@@ -30,6 +30,8 @@ namespace SmartContextMenu.Settings
 
         public DimmerSettings Dimmer { get; set; }
 
+        public WindowBorderSettings WindowBorder { get; set; }
+
         public WindowSizerType Sizer { get; set; }
 
         public string LanguageName { get; set; }
@@ -48,6 +50,7 @@ namespace SmartContextMenu.Settings
             Key4 = VirtualKey.None;
             MouseButton = MouseButton.None;
             Dimmer = new DimmerSettings();
+            WindowBorder = new WindowBorderSettings();
             Sizer = WindowSizerType.WindowWithMargins;
             ShowOnlyOnTitlebar = false;
             MenuDisabledInterval = DefaultMenuDisabledInterval;
@@ -85,6 +88,7 @@ namespace SmartContextMenu.Settings
             settings.Key4 = Key4;
             settings.MouseButton = MouseButton;
             settings.Dimmer = (DimmerSettings)Dimmer.Clone();
+            settings.WindowBorder = (WindowBorderSettings)WindowBorder.Clone();
             settings.Sizer = Sizer;
             settings.ShowOnlyOnTitlebar = ShowOnlyOnTitlebar;
             settings.MenuDisabledInterval = MenuDisabledInterval;
@@ -231,6 +235,16 @@ namespace SmartContextMenu.Settings
                 return false;
             }
 
+            if (WindowBorder.Enabled != other.WindowBorder.Enabled ||
+                WindowBorder.UseAccentColor != other.WindowBorder.UseAccentColor ||
+                string.Compare(WindowBorder.Color, other.WindowBorder.Color, StringComparison.CurrentCultureIgnoreCase) != 0 ||
+                WindowBorder.Thickness != other.WindowBorder.Thickness ||
+                WindowBorder.Opacity != other.WindowBorder.Opacity ||
+                WindowBorder.RoundCorners != other.WindowBorder.RoundCorners)
+            {
+                return false;
+            }
+
             if (Sizer != other.Sizer)
             {
                 return false;
@@ -300,6 +314,12 @@ namespace SmartContextMenu.Settings
             hashCode ^= MouseButton.GetHashCode();
             hashCode ^= Dimmer.Color.GetHashCode();
             hashCode ^= Dimmer.Transparency.GetHashCode();
+            hashCode ^= WindowBorder.Enabled.GetHashCode();
+            hashCode ^= WindowBorder.UseAccentColor.GetHashCode();
+            hashCode ^= WindowBorder.Color.GetHashCode();
+            hashCode ^= WindowBorder.Thickness.GetHashCode();
+            hashCode ^= WindowBorder.Opacity.GetHashCode();
+            hashCode ^= WindowBorder.RoundCorners.GetHashCode();
             hashCode ^= Sizer.GetHashCode();
             hashCode ^= LanguageName.GetHashCode();
             hashCode ^= ShowOnlyOnTitlebar.GetHashCode();

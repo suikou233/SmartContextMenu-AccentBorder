@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 using SmartContextMenu.Native.Enums;
 
@@ -22,6 +22,10 @@ namespace SmartContextMenu.Native
 
         [DllImport("gdi32.dll")]
         public static extern IntPtr CreateDIBSection(IntPtr hdc, [In] ref IntPtr pbmi, uint pila, out IntPtr ppvBits, IntPtr hSection, uint dwOffset);
+
+        /// <summary>32bpp 顶朝下 DIB 区段，用于 UpdateLayeredWindow 的预乘 ARGB 位图。</summary>
+        [DllImport("gdi32.dll", EntryPoint = "CreateDIBSection", SetLastError = true)]
+        public static extern IntPtr CreateDIBSection(IntPtr hdc, [In] ref Structs.BitmapInfo pbmi, uint usage, out IntPtr ppvBits, IntPtr hSection, uint dwOffset);
 
         [DllImport("gdi32.dll", EntryPoint = "DeleteDC")]
         public static extern bool DeleteDC([In] IntPtr hdc);

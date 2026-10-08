@@ -146,6 +146,7 @@
     <previous key1="17" key2="18" key3="122" />
   </mover>
   <dimmer color="#000000" transparency="50" />
+  <windowBorder enabled="true" accentColor="true" color="#0099cc" thickness="4" opacity="100" roundCorners="true" />
   <sizer type="" />
   <systemTrayIcon show="true" />
   <display highDPI="true" />

@@ -147,6 +147,9 @@
     <Compile Include="Forms\TransparencyForm.Designer.cs">
       <DependentUpon>TransparencyForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="Forms\WindowBorderForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Forms\SizeSettingsForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -168,6 +171,7 @@
     <Compile Include="Native\Enums\CopyPixelOperations.cs" />
     <Compile Include="Native\Enums\DpiAwarenessContext.cs" />
     <Compile Include="Native\Enums\DwmBB.cs" />
+    <Compile Include="Native\Enums\DwmWindowCornerPreference.cs" />
     <Compile Include="Native\Enums\LayeredWindow.cs" />
     <Compile Include="Native\Enums\Priority.cs" />
     <Compile Include="Native\Enums\PriorityClass.cs" />
@@ -182,6 +186,8 @@
     <Compile Include="Native\Ntdll.cs" />
     <Compile Include="Native\SHCore.cs" />
     <Compile Include="Native\Structs\AccentPolicy.cs" />
+    <Compile Include="Native\Structs\BitmapInfo.cs" />
+    <Compile Include="Native\Structs\BlendFunction.cs" />
     <Compile Include="Native\Structs\ConsoleScreenBufferInfo.cs" />
     <Compile Include="Native\Structs\Coord.cs" />
     <Compile Include="Native\Structs\CURSORINFO.cs" />
@@ -193,12 +199,14 @@
     <Compile Include="Native\Structs\Point.cs" />
     <Compile Include="Native\Structs\ProcessBasicInformation.cs" />
     <Compile Include="Native\Structs\Rect.cs" />
+    <Compile Include="Native\Structs\NativeSize.cs" />
     <Compile Include="Native\Structs\SmallRect.cs" />
     <Compile Include="Native\Structs\TitlebarInfo.cs" />
     <Compile Include="Native\Structs\WindowCompositionAttributeData.cs" />
     <Compile Include="Native\Structs\WindowInfo.cs" />
     <Compile Include="Native\Structs\WindowPlacement.cs" />
     <Compile Include="Native\User32.cs" />
+    <Compile Include="Native\Uxtheme.cs" />
     <Compile Include="ProcessInfo.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -211,6 +219,7 @@
     <Compile Include="Settings\ApplicationSettings.cs" />
     <Compile Include="Settings\MoveToMenuItem.cs" />
     <Compile Include="Settings\StartProgramMenuItem.cs" />
+    <Compile Include="Settings\WindowBorderSettings.cs" />
     <Compile Include="Settings\WindowSizeMenuItem.cs" />
     <Compile Include="CommandLineParser.cs" />
     <Compile Include="SystemTrayMenu.cs" />
@@ -218,6 +227,7 @@
     <Compile Include="Utils\EnumUtils.cs" />
     <Compile Include="Utils\FileUtils.cs" />
     <Compile Include="Utils\SystemUtils.cs" />
+    <Compile Include="Utils\WindowBorderManager.cs" />
     <Compile Include="Utils\WindowUtils.cs" />
     <Compile Include="Win32Window.cs" />
     <Compile Include="Window.cs" />

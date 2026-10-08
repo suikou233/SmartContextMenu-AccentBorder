@@ -1,4 +1,4 @@
-<languages>
+﻿<languages>
   <language name="en">
     <item name="separator" value="Separator" />
     <item name="information" value="Information" />
@@ -238,6 +238,15 @@
     <item name="system_menu_maximize" value="Maximize" />
     <item name="system_menu_close" value="Close" />
     <item name="system_menu_available" value="Available" />
+    <item name="tab_settings_window_border" value="Always On Top Border" />
+    <item name="grpb_window_border" value="Border appearance" />
+    <item name="chk_window_border_enabled" value="Show an accent color border when a window is always on top" />
+    <item name="chk_window_border_accent" value="Use the system accent color" />
+    <item name="lbl_window_border_color" value="Border color" />
+    <item name="btn_window_border_color" value="Choose..." />
+    <item name="lbl_window_border_thickness" value="Thickness (px)" />
+    <item name="lbl_window_border_opacity" value="Opacity (%)" />
+    <item name="chk_window_border_round_corners" value="Follow the window corner rounding" />
   </language>
   <language name="de">
     <item name="separator" value="Separator" />
@@ -718,6 +727,15 @@
     <item name="system_menu_maximize" value="最大化" />
     <item name="system_menu_close" value="关闭" />
     <item name="system_menu_available" value="可用的" />
+    <item name="tab_settings_window_border" value="置顶边框" />
+    <item name="grpb_window_border" value="边框外观" />
+    <item name="chk_window_border_enabled" value="窗口置顶时显示强调色边框" />
+    <item name="chk_window_border_accent" value="使用系统强调色" />
+    <item name="lbl_window_border_color" value="边框颜色" />
+    <item name="btn_window_border_color" value="选择..." />
+    <item name="lbl_window_border_thickness" value="边框粗细（像素）" />
+    <item name="lbl_window_border_opacity" value="不透明度（%）" />
+    <item name="chk_window_border_round_corners" value="圆角跟随窗口" />
   </language>
   <language name="zh_tw">
     <item name="separator" value="分隔線" />
@@ -958,6 +976,15 @@
     <item name="system_menu_maximize" value="最大化" />
     <item name="system_menu_close" value="關閉" />
     <item name="system_menu_available" value="可用的" />
+    <item name="tab_settings_window_border" value="置頂邊框" />
+    <item name="grpb_window_border" value="邊框外觀" />
+    <item name="chk_window_border_enabled" value="視窗置頂時顯示強調色邊框" />
+    <item name="chk_window_border_accent" value="使用系統強調色" />
+    <item name="lbl_window_border_color" value="邊框顏色" />
+    <item name="btn_window_border_color" value="選擇..." />
+    <item name="lbl_window_border_thickness" value="邊框粗細（像素）" />
+    <item name="lbl_window_border_opacity" value="不透明度（%）" />
+    <item name="chk_window_border_round_corners" value="圓角跟隨視窗" />
   </language>
   <language name="ja">
     <item name="separator" value="区切り" />

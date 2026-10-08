@@ -31,18 +31,22 @@ namespace SmartContextMenu.Forms
         private IntPtr _hWinEventHookDestroy;
         private IntPtr _hWinEventHookMinimize;
         private IntPtr _hWinEventHookForeground;
+        private IntPtr _hWinEventHookLocationChange;
+        private IntPtr _hWinEventHookMoveSizeEnd;
         private IntPtr _dimHandle;
         private MenuTimer _menuTimer;
         private readonly ContextMenuStrip _menu;
         private readonly List<DimForm> _dimForms;
         private readonly IDictionary<IntPtr, Window> _windows;
         private readonly SystemTrayMenu _systemTrayMenu;
+        private readonly WindowBorderManager _borderManager;
 
         public MainForm(ApplicationSettings settings, params Window[] windows)
         {
             InitializeComponent();
             _settings = settings;
             _systemTrayMenu = new SystemTrayMenu();
+            _borderManager = new WindowBorderManager(settings.WindowBorder);
             _menu = new ContextMenuStrip();
             _dimHandle = IntPtr.Zero;
             _dimForms = new List<DimForm>();
@@ -66,6 +70,12 @@ namespace SmartContextMenu.Forms
             _hWinEventHookMinimize = User32.SetWinEventHook(Constants.EVENT_SYSTEM_MINIMIZESTART, Constants.EVENT_SYSTEM_MINIMIZESTART, IntPtr.Zero, _winEventProc, 0, 0, Constants.WINEVENT_OUTOFCONTEXT);
             _hWinEventHookForeground = User32.SetWinEventHook(Constants.EVENT_SYSTEM_FOREGROUND, Constants.EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, _winEventProc, 0, 0, Constants.WINEVENT_OUTOFCONTEXT);
 
+            // 置顶边框的实时跟随靠这两个钩子，而不是靠定时器轮询。
+            // 必须带 WINEVENT_SKIPOWNPROCESS：否则自己移动边框窗口又会触发事件，形成回环。
+            var borderTrackingFlags = Constants.WINEVENT_OUTOFCONTEXT | Constants.WINEVENT_SKIPOWNPROCESS;
+            _hWinEventHookLocationChange = User32.SetWinEventHook(Constants.EVENT_OBJECT_LOCATIONCHANGE, Constants.EVENT_OBJECT_LOCATIONCHANGE, IntPtr.Zero, _winEventProc, 0, 0, borderTrackingFlags);
+            _hWinEventHookMoveSizeEnd = User32.SetWinEventHook(Constants.EVENT_SYSTEM_MOVESIZEEND, Constants.EVENT_SYSTEM_MOVESIZEEND, IntPtr.Zero, _winEventProc, 0, 0, borderTrackingFlags);
+
             if (_settings.ShowSystemTrayIcon)
             {
                 var manager = new LanguageManager(_settings.LanguageName);
@@ -81,6 +91,12 @@ namespace SmartContextMenu.Forms
             }
 
             ContextMenuManager.Build(_menu, _settings, MenuItemClick);
+
+            // 命令行启动时（--alwaysontop on）窗口已经置顶了，这里补上边框
+            foreach (var window in _windows.Values)
+            {
+                SyncWindowBorder(window);
+            }
 
             using var process = Process.GetCurrentProcess();
             using var mainModule = process.MainModule;
@@ -113,6 +129,8 @@ namespace SmartContextMenu.Forms
             User32.UnhookWinEvent(_hWinEventHookDestroy);
             User32.UnhookWinEvent(_hWinEventHookMinimize);
             User32.UnhookWinEvent(_hWinEventHookForeground);
+            User32.UnhookWinEvent(_hWinEventHookLocationChange);
+            User32.UnhookWinEvent(_hWinEventHookMoveSizeEnd);
 
             foreach (Window window in _windows.Values)
             {
@@ -121,6 +139,7 @@ namespace SmartContextMenu.Forms
 
             ContextMenuManager.Release(_menu, MenuItemClick);
             _systemTrayMenu?.Dispose();
+            _borderManager?.Dispose();
             _keyboardHook?.Dispose();
             _mouseHook?.Dispose();
 
@@ -456,6 +475,7 @@ namespace SmartContextMenu.Forms
                 case MenuItemName.AlwaysOnTop:
                     {
                         window.MakeAlwaysOnTop(!window.AlwaysOnTop);
+                        SyncWindowBorder(window);
                     }
                     break;
 
@@ -796,6 +816,23 @@ namespace SmartContextMenu.Forms
             }
         }
 
+        /// <summary>
+        /// 让边框状态与窗口的实际置顶状态保持一致。
+        /// 以 WS_EX_TOPMOST 的真实状态为准，而不是自己维护一份“已置顶集合”，
+        /// 这样窗口被其它程序取消置顶后，菜单里的勾选和边框都不会错位。
+        /// </summary>
+        private void SyncWindowBorder(Window window)
+        {
+            if (window.AlwaysOnTop && _settings.WindowBorder.Enabled)
+            {
+                _borderManager.Add(window.Handle);
+            }
+            else
+            {
+                _borderManager.Remove(window.Handle);
+            }
+        }
+
         private void MenuItemClick(Window window, WindowSizeMenuItem menuItem)
         {
             window.ShowNormal();
@@ -930,6 +967,7 @@ namespace SmartContextMenu.Forms
         private void SettingsFormOkClick(object sender, EventArgs<ApplicationSettings> e)
         {
             _settings = e.Entity;
+            _borderManager.ApplySettings(_settings.WindowBorder);
 
             var manager = new LanguageManager(_settings.LanguageName);
             _systemTrayMenu.RefreshLanguage(manager);
@@ -1044,6 +1082,12 @@ namespace SmartContextMenu.Forms
 
         private void WinEventProc(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
         {
+            // 置顶边框的实时跟随。UpdateNow 对未跟踪的窗口只是一次字典查询，开销可忽略。
+            if (eventType == Constants.EVENT_OBJECT_LOCATIONCHANGE || eventType == Constants.EVENT_SYSTEM_MOVESIZEEND)
+            {
+                _borderManager.UpdateNow(hwnd);
+            }
+
             if (eventType == Constants.EVENT_SYSTEM_MINIMIZESTART && idObject == Constants.OBJID_WINDOW)
             {
                 BeginInvoke((MethodInvoker)delegate
@@ -1089,6 +1133,8 @@ namespace SmartContextMenu.Forms
                         window.Dispose();
                         _windows.Remove(hwnd);
                     }
+
+                    _borderManager.Remove(hwnd);
                 });
             }
         }
