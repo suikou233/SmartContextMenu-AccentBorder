@@ -120,6 +120,19 @@ namespace SmartContextMenu.Utils
                 return;
             }
 
+            // 边框只是装饰，任何异常都不该影响主程序
+            try
+            {
+                UpdateBorderCore(handle, border);
+            }
+            catch
+            {
+                border.HideBorder();
+            }
+        }
+
+        private void UpdateBorderCore(IntPtr handle, WindowBorderForm border)
+        {
             // 目标窗口已销毁
             if (!User32.IsWindow(handle))
             {

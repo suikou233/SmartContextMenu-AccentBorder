@@ -96,6 +96,12 @@ namespace SmartContextMenu.Forms
             if (sizeChanged)
             {
                 RecreateSurface(width, height);
+                if (!HasSurface)
+                {
+                    // GDI 申请失败，放弃这一帧；绝不能带着空指针继续
+                    HideBorder();
+                    return;
+                }
             }
 
             if (contentChanged)
@@ -149,15 +155,19 @@ namespace SmartContextMenu.Forms
             }
         }
 
+        /// <summary>
+        /// 重建绘图表面。任何一步失败都必须把 <see cref="_surface"/> 置空并释放干净，
+        /// 否则后续 Marshal.Copy 会往空指针写，直接 AccessViolation 打崩进程。
+        /// </summary>
         private void RecreateSurface(int width, int height)
         {
             ReleaseSurface();
 
-            _surface = new Bitmap(width, height, PixelFormat.Format32bppArgb);
-            _surfaceWidth = width;
-            _surfaceHeight = height;
-
             _memoryDc = Gdi32.CreateCompatibleDC(IntPtr.Zero);
+            if (_memoryDc == IntPtr.Zero)
+            {
+                return;
+            }
 
             var info = new BitmapInfo
             {
@@ -175,8 +185,22 @@ namespace SmartContextMenu.Forms
             };
 
             _dibSection = Gdi32.CreateDIBSection(_memoryDc, ref info, DIB_RGB_COLORS, out _dibBits, IntPtr.Zero, 0);
+            if (_dibSection == IntPtr.Zero || _dibBits == IntPtr.Zero)
+            {
+                // GDI 资源耗尽等，放弃这一帧
+                ReleaseSurface();
+                return;
+            }
+
             _previousBitmap = Gdi32.SelectObject(_memoryDc, _dibSection);
+
+            _surface = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+            _surfaceWidth = width;
+            _surfaceHeight = height;
         }
+
+        /// <summary>绘图表面是否可用。</summary>
+        private bool HasSurface => _surface != null && _memoryDc != IntPtr.Zero && _dibBits != IntPtr.Zero;
 
         private void ReleaseSurface()
         {
@@ -264,6 +288,11 @@ namespace SmartContextMenu.Forms
 
         private void CopySurfaceToDib()
         {
+            if (!HasSurface || _surfaceWidth <= 0 || _surfaceHeight <= 0)
+            {
+                return;
+            }
+
             var width = _surfaceWidth;
             var height = _surfaceHeight;
             var stride = width * 4;
@@ -309,6 +338,11 @@ namespace SmartContextMenu.Forms
 
         private void Present(int x, int y, int width, int height)
         {
+            if (_memoryDc == IntPtr.Zero)
+            {
+                return;
+            }
+
             var screenDc = User32.GetDC(IntPtr.Zero);
             try
             {
