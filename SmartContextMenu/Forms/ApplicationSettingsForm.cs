@@ -28,11 +28,11 @@ namespace SmartContextMenu.Forms
         private NumericUpDown _nudWindowBorderOpacity;
         private CheckBox _chkWindowBorderRoundCorners;
 
-        /// <summary>设计宽度（已含 AutoScale 缩放），用于每次重新适配时先还原。</summary>
-        private int _designClientWidth;
+        /// <summary>左侧导航栏宽度上限（实际按最长条目文字量出来，随字体/DPI 自动变化）。</summary>
+        private const int SidebarMaxWidth = 240;
 
-        /// <summary>页签右侧留一点余量，避免刚好占满时原生控件又弹出滚动箭头。</summary>
-        private const int TabStripRightMargin = 6;
+        private ListBox _lstSections;
+        private Panel _pnlContent;
 
         public event EventHandler<EventArgs<ApplicationSettings>> OkClick;
 
@@ -42,44 +42,6 @@ namespace SmartContextMenu.Forms
             _languageManager = new LanguageManager(_settings.LanguageName);
             InitializeComponent();
             InitializeControls();
-        }
-
-        protected override void OnLoad(EventArgs e)
-        {
-            base.OnLoad(e);
-            FitWindowToTabs();
-        }
-
-        /// <summary>
-        /// 选项卡增加到 7 个后，原生选项卡条放不下，会弹出滚动箭头把最后一个挡住。
-        /// 这里按实际需要的宽度把窗体撑宽一点。
-        ///
-        /// 用 GetTabRect 实测而不是写死宽度，是因为：
-        /// 1) 各语言标题长度差别很大（德语/俄语比中文长得多）；
-        /// 2) 窗体还会被 AutoScale 按运行字体缩放（实测本机只有设计的 76%）。
-        /// 写死宽度换个语言或换台机器就会再次溢出。
-        /// </summary>
-        private void FitWindowToTabs()
-        {
-            if (_designClientWidth == 0)
-            {
-                _designClientWidth = ClientSize.Width;
-            }
-
-            // 先还原成设计宽度，保证反复调用不会越撑越宽
-            ClientSize = new Size(_designClientWidth, ClientSize.Height);
-
-            var needed = 0;
-            for (var i = 0; i < tabMain.TabCount; i++)
-            {
-                needed = Math.Max(needed, tabMain.GetTabRect(i).Right);
-            }
-
-            var extra = needed + TabStripRightMargin - tabMain.ClientSize.Width;
-            if (extra > 0)
-            {
-                ClientSize = new Size(ClientSize.Width + extra, ClientSize.Height);
-            }
         }
 
         private void InitializeControls()
@@ -212,6 +174,141 @@ namespace SmartContextMenu.Forms
             FillGridViewByStartProgramItems(gvStartProgram, _settings.MenuItems.StartProgramItems);
 
             InitializeWindowBorderControls();
+            BuildSidebarNavigation();
+        }
+
+        /// <summary>
+        /// 把原来的「顶部选项卡条」换成「左侧导航栏」。
+        ///
+        /// 为什么换：选项卡横向排列时，宽度是硬瓶颈，页面一多就放不下，
+        /// 原生控件会弹出滚动箭头把后面的页面藏起来（本机实测第 7 个就溢出了）。
+        /// 竖向导航的瓶颈是高度，而设置项本来就是竖着长的，加多少页面都不用改结构。
+        ///
+        /// 实现上刻意保守：
+        /// 1) 现有 TabPage 和里面的控件一行不动，仍然由 TabControl 承载，只是把标签条藏起来；
+        /// 2) Designer 生成的文件一个字不改，全部重排都在这里做；
+        /// 3) 尺寸全部从控件本身量出来（标签条高度用 DisplayRectangle.Y，
+        ///    侧栏宽度按最长条目文字量），不写死像素 —— 本机 AutoScale 会把窗体缩到设计的 76%，
+        ///    任何写死的尺寸在别的机器或别的语言上都会失准。
+        /// </summary>
+        private void BuildSidebarNavigation()
+        {
+            SuspendLayout();
+
+            // 标签条实际高度（随 DPI / 字体变化），后面靠它把标签条顶出可视区
+            var stripHeight = tabMain.DisplayRectangle.Y;
+            var sidebarWidth = MeasureSidebarWidth();
+            var contentHeight = tabMain.Height;
+
+            // 窗体加宽量 = 侧栏宽度，这样内容区宽度和原来完全一致，
+            // 页面里的分组框（721）和网格（705）不会被挤压
+            ClientSize = new Size(ClientSize.Width + sidebarWidth, ClientSize.Height);
+
+            Controls.Remove(tabMain);
+            tabMain.Dock = DockStyle.None;
+
+            _pnlContent = new Panel
+            {
+                Location = new Point(sidebarWidth, 0),
+                Size = new Size(ClientSize.Width - sidebarWidth, contentHeight)
+            };
+            _pnlContent.Controls.Add(tabMain);
+            Controls.Add(_pnlContent);
+
+            _lstSections = new ListBox
+            {
+                Location = new Point(0, 0),
+                Size = new Size(sidebarWidth, contentHeight),
+                IntegralHeight = false,
+                BorderStyle = BorderStyle.FixedSingle,
+                DrawMode = DrawMode.OwnerDrawFixed,
+                ItemHeight = Font.Height + 14
+            };
+            _lstSections.DrawItem += SidebarDrawItem;
+            _lstSections.SelectedIndexChanged += SidebarSelectedIndexChanged;
+
+            for (var i = 0; i < tabMain.TabCount; i++)
+            {
+                _lstSections.Items.Add(tabMain.TabPages[i].Text);
+            }
+
+            Controls.Add(_lstSections);
+            _lstSections.BringToFront();
+
+            LayoutContent(stripHeight);
+
+            // 底部两个按钮在 Designer 里是固定坐标贴右的（整个窗体没有任何 Anchor），
+            // 窗体加宽后必须跟着右移，否则会离右边框越来越远
+            btnApply.Left += sidebarWidth;
+            btnCancel.Left += sidebarWidth;
+            btnApply.BringToFront();
+            btnCancel.BringToFront();
+
+            if (_lstSections.Items.Count > 0)
+            {
+                _lstSections.SelectedIndex = 0;
+            }
+
+            ResumeLayout();
+        }
+
+        /// <summary>侧栏宽度按最长条目文字实测并留出内边距，不写死像素。</summary>
+        private int MeasureSidebarWidth()
+        {
+            var needed = 0;
+            for (var i = 0; i < tabMain.TabCount; i++)
+            {
+                var size = TextRenderer.MeasureText(tabMain.TabPages[i].Text, Font);
+                needed = Math.Max(needed, size.Width);
+            }
+
+            return Math.Min(needed + 28, SidebarMaxWidth);
+        }
+
+        /// <summary>
+        /// 让 TabControl 顶部的原生标签条落到容器可视区之外，从而被容器裁掉。
+        /// 只挪位置不改尺寸，所以页面内容完全不受影响。
+        /// </summary>
+        private void LayoutContent(int stripHeight)
+        {
+            tabMain.Bounds = new Rectangle(
+                0,
+                -stripHeight,
+                _pnlContent.ClientSize.Width,
+                _pnlContent.ClientSize.Height + stripHeight);
+        }
+
+        private void SidebarSelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (_lstSections.SelectedIndex >= 0 && _lstSections.SelectedIndex < tabMain.TabCount)
+            {
+                tabMain.SelectedIndex = _lstSections.SelectedIndex;
+            }
+        }
+
+        /// <summary>自绘条目：默认 ListBox 太挤，这里加大内边距并给选中项一个明确底色。</summary>
+        private void SidebarDrawItem(object sender, DrawItemEventArgs e)
+        {
+            if (e.Index < 0 || e.Index >= _lstSections.Items.Count)
+            {
+                return;
+            }
+
+            var selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+
+            using (var brush = new SolidBrush(selected ? SystemColors.Highlight : _lstSections.BackColor))
+            {
+                e.Graphics.FillRectangle(brush, e.Bounds);
+            }
+
+            var bounds = new Rectangle(e.Bounds.X + 10, e.Bounds.Y, e.Bounds.Width - 14, e.Bounds.Height);
+            TextRenderer.DrawText(
+                e.Graphics,
+                _lstSections.Items[e.Index].ToString(),
+                e.Font,
+                bounds,
+                selected ? SystemColors.HighlightText : _lstSections.ForeColor,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         }
 
         /// <summary>
