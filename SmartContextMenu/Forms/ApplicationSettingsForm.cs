@@ -28,6 +28,12 @@ namespace SmartContextMenu.Forms
         private NumericUpDown _nudWindowBorderOpacity;
         private CheckBox _chkWindowBorderRoundCorners;
 
+        /// <summary>设计宽度（已含 AutoScale 缩放），用于每次重新适配时先还原。</summary>
+        private int _designClientWidth;
+
+        /// <summary>页签右侧留一点余量，避免刚好占满时原生控件又弹出滚动箭头。</summary>
+        private const int TabStripRightMargin = 6;
+
         public event EventHandler<EventArgs<ApplicationSettings>> OkClick;
 
         public ApplicationSettingsForm(ApplicationSettings settings)
@@ -36,6 +42,44 @@ namespace SmartContextMenu.Forms
             _languageManager = new LanguageManager(_settings.LanguageName);
             InitializeComponent();
             InitializeControls();
+        }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            FitWindowToTabs();
+        }
+
+        /// <summary>
+        /// 选项卡增加到 7 个后，原生选项卡条放不下，会弹出滚动箭头把最后一个挡住。
+        /// 这里按实际需要的宽度把窗体撑宽一点。
+        ///
+        /// 用 GetTabRect 实测而不是写死宽度，是因为：
+        /// 1) 各语言标题长度差别很大（德语/俄语比中文长得多）；
+        /// 2) 窗体还会被 AutoScale 按运行字体缩放（实测本机只有设计的 76%）。
+        /// 写死宽度换个语言或换台机器就会再次溢出。
+        /// </summary>
+        private void FitWindowToTabs()
+        {
+            if (_designClientWidth == 0)
+            {
+                _designClientWidth = ClientSize.Width;
+            }
+
+            // 先还原成设计宽度，保证反复调用不会越撑越宽
+            ClientSize = new Size(_designClientWidth, ClientSize.Height);
+
+            var needed = 0;
+            for (var i = 0; i < tabMain.TabCount; i++)
+            {
+                needed = Math.Max(needed, tabMain.GetTabRect(i).Right);
+            }
+
+            var extra = needed + TabStripRightMargin - tabMain.ClientSize.Width;
+            if (extra > 0)
+            {
+                ClientSize = new Size(ClientSize.Width + extra, ClientSize.Height);
+            }
         }
 
         private void InitializeControls()
@@ -203,6 +247,8 @@ namespace SmartContextMenu.Forms
                 Location = new Point(12, 12),
                 Size = new Size(721, 256),
                 TabStop = false,
+                // 窗体为了容纳 7 个选项卡会被撑宽，分组框跟着变宽才不会右侧留白
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 Text = GetBorderString("grpb_window_border", "Border appearance")
             };
 
