@@ -216,7 +216,7 @@
             this.grpbMouseHotkeys.Controls.Add(this.cmbKey3);
             this.grpbMouseHotkeys.Controls.Add(this.cmbKey2);
             this.grpbMouseHotkeys.Controls.Add(this.cmbKey1);
-            this.grpbMouseHotkeys.Location = new System.Drawing.Point(11, 11);
+            this.grpbMouseHotkeys.Location = new System.Drawing.Point(11, 20);
             this.grpbMouseHotkeys.Margin = new System.Windows.Forms.Padding(4);
             this.grpbMouseHotkeys.Name = "grpbMouseHotkeys";
             this.grpbMouseHotkeys.Padding = new System.Windows.Forms.Padding(4);

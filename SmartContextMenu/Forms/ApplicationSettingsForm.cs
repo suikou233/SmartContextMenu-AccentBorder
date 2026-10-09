@@ -31,8 +31,16 @@ namespace SmartContextMenu.Forms
         /// <summary>左侧导航栏宽度上限（实际按最长条目文字量出来，随字体/DPI 自动变化）。</summary>
         private const int SidebarMaxWidth = 240;
 
+        /// <summary>侧栏与内容区之间分隔线的宽度。</summary>
+        private const int SeparatorWidth = 1;
+
+        /// <summary>选中项左侧强调条的宽度。</summary>
+        private const int AccentBarWidth = 3;
+
         private ListBox _lstSections;
         private Panel _pnlContent;
+        private Panel _pnlSeparator;
+        private int _hotIndex = -1;
 
         public event EventHandler<EventArgs<ApplicationSettings>> OkClick;
 
@@ -200,47 +208,62 @@ namespace SmartContextMenu.Forms
             var sidebarWidth = MeasureSidebarWidth();
             var contentHeight = tabMain.Height;
 
-            // 窗体加宽量 = 侧栏宽度，这样内容区宽度和原来完全一致，
+            // 窗体加宽量 = 侧栏宽度 + 分隔线，这样内容区宽度和原来完全一致，
             // 页面里的分组框（721）和网格（705）不会被挤压
-            ClientSize = new Size(ClientSize.Width + sidebarWidth, ClientSize.Height);
+            ClientSize = new Size(ClientSize.Width + sidebarWidth + SeparatorWidth, ClientSize.Height);
 
             Controls.Remove(tabMain);
             tabMain.Dock = DockStyle.None;
 
-            _pnlContent = new Panel
-            {
-                Location = new Point(sidebarWidth, 0),
-                Size = new Size(ClientSize.Width - sidebarWidth, contentHeight)
-            };
-            _pnlContent.Controls.Add(tabMain);
-            Controls.Add(_pnlContent);
-
+            // 侧栏底色比窗体略深一点，形成"导航区/内容区"的层次，不用生硬的边框
             _lstSections = new ListBox
             {
                 Location = new Point(0, 0),
                 Size = new Size(sidebarWidth, contentHeight),
                 IntegralHeight = false,
-                BorderStyle = BorderStyle.FixedSingle,
+                BorderStyle = BorderStyle.None,
                 DrawMode = DrawMode.OwnerDrawFixed,
-                ItemHeight = Font.Height + 14
+                ItemHeight = Font.Height + 16,
+                BackColor = Shade(SystemColors.Control, -10),
+                ForeColor = SystemColors.ControlText,
+                TabStop = false
             };
             _lstSections.DrawItem += SidebarDrawItem;
             _lstSections.SelectedIndexChanged += SidebarSelectedIndexChanged;
+            _lstSections.MouseMove += SidebarMouseMove;
+            _lstSections.MouseLeave += SidebarMouseLeave;
 
             for (var i = 0; i < tabMain.TabCount; i++)
             {
                 _lstSections.Items.Add(tabMain.TabPages[i].Text);
             }
 
+            // 侧栏与内容区之间的分隔线，比侧栏底色再深一档
+            _pnlSeparator = new Panel
+            {
+                Location = new Point(sidebarWidth, 0),
+                Size = new Size(SeparatorWidth, contentHeight),
+                BackColor = Shade(SystemColors.Control, -35)
+            };
+
+            _pnlContent = new Panel
+            {
+                Location = new Point(sidebarWidth + SeparatorWidth, 0),
+                Size = new Size(ClientSize.Width - sidebarWidth - SeparatorWidth, contentHeight)
+            };
+            _pnlContent.Controls.Add(tabMain);
+
+            // 先加内容区、再加分隔线和侧栏，保证侧栏压在内容区之上
+            Controls.Add(_pnlContent);
+            Controls.Add(_pnlSeparator);
             Controls.Add(_lstSections);
-            _lstSections.BringToFront();
 
             LayoutContent(stripHeight);
 
             // 底部两个按钮在 Designer 里是固定坐标贴右的（整个窗体没有任何 Anchor），
             // 窗体加宽后必须跟着右移，否则会离右边框越来越远
-            btnApply.Left += sidebarWidth;
-            btnCancel.Left += sidebarWidth;
+            btnApply.Left += sidebarWidth + SeparatorWidth;
+            btnCancel.Left += sidebarWidth + SeparatorWidth;
             btnApply.BringToFront();
             btnCancel.BringToFront();
 
@@ -251,6 +274,15 @@ namespace SmartContextMenu.Forms
 
             ResumeLayout();
         }
+
+        /// <summary>
+        /// 从系统控件色派生一个深浅档位。用派生色而不是写死 RGB，
+        /// 这样在浅色/深色主题下都不会出现"一块突兀的灰"。
+        /// </summary>
+        private static Color Shade(Color color, int delta) => Color.FromArgb(
+            Math.Min(255, Math.Max(0, color.R + delta)),
+            Math.Min(255, Math.Max(0, color.G + delta)),
+            Math.Min(255, Math.Max(0, color.B + delta)));
 
         /// <summary>侧栏宽度按最长条目文字实测并留出内边距，不写死像素。</summary>
         private int MeasureSidebarWidth()
@@ -286,7 +318,11 @@ namespace SmartContextMenu.Forms
             }
         }
 
-        /// <summary>自绘条目：默认 ListBox 太挤，这里加大内边距并给选中项一个明确底色。</summary>
+        /// <summary>
+        /// 自绘条目。默认 ListBox 的选中态是一整块高饱和蓝，在设置窗口里很扎眼；
+        /// 这里改成现代导航栏的常见做法：底色深浅区分 + 选中项左侧一条强调条。
+        /// 不用粗体字是为了避免额外 Font 对象的释放问题（Designer 已经重写了 Dispose）。
+        /// </summary>
         private void SidebarDrawItem(object sender, DrawItemEventArgs e)
         {
             if (e.Index < 0 || e.Index >= _lstSections.Items.Count)
@@ -294,21 +330,67 @@ namespace SmartContextMenu.Forms
                 return;
             }
 
-            var selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+            var selected = e.Index == _lstSections.SelectedIndex;
+            var hot = !selected && e.Index == _hotIndex;
 
-            using (var brush = new SolidBrush(selected ? SystemColors.Highlight : _lstSections.BackColor))
+            var background = selected
+                ? Shade(SystemColors.Control, -30)
+                : (hot ? Shade(SystemColors.Control, -20) : _lstSections.BackColor);
+
+            using (var brush = new SolidBrush(background))
             {
                 e.Graphics.FillRectangle(brush, e.Bounds);
             }
 
-            var bounds = new Rectangle(e.Bounds.X + 10, e.Bounds.Y, e.Bounds.Width - 14, e.Bounds.Height);
+            // 选中项左侧的强调条
+            if (selected)
+            {
+                using (var accent = new SolidBrush(SystemColors.Highlight))
+                {
+                    e.Graphics.FillRectangle(
+                        accent,
+                        new Rectangle(e.Bounds.X, e.Bounds.Y, AccentBarWidth, e.Bounds.Height));
+                }
+            }
+
+            var textBounds = new Rectangle(
+                e.Bounds.X + AccentBarWidth + 10,
+                e.Bounds.Y,
+                e.Bounds.Width - AccentBarWidth - 16,
+                e.Bounds.Height);
+
             TextRenderer.DrawText(
                 e.Graphics,
                 _lstSections.Items[e.Index].ToString(),
                 e.Font,
-                bounds,
-                selected ? SystemColors.HighlightText : _lstSections.ForeColor,
+                textBounds,
+                SystemColors.ControlText,
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+        }
+
+        /// <summary>ListBox 自身没有悬停态，这里自己跟踪鼠标位置来重绘。</summary>
+        private void SidebarMouseMove(object sender, System.Windows.Forms.MouseEventArgs e)
+        {
+            var index = _lstSections.IndexFromPoint(e.Location);
+            if (index == ListBox.NoMatches)
+            {
+                index = -1;
+            }
+
+            if (index != _hotIndex)
+            {
+                _hotIndex = index;
+                _lstSections.Invalidate();
+            }
+        }
+
+        private void SidebarMouseLeave(object sender, EventArgs e)
+        {
+            if (_hotIndex != -1)
+            {
+                _hotIndex = -1;
+                _lstSections.Invalidate();
+            }
         }
 
         /// <summary>
@@ -341,7 +423,8 @@ namespace SmartContextMenu.Forms
 
             _grpbWindowBorder = new GroupBox
             {
-                Location = new Point(12, 12),
+                // 和其余页面第一个分组框保持同一边距（原来这里是 12,12，别的页是 11,20）
+                Location = new Point(11, 20),
                 Size = new Size(721, 256),
                 TabStop = false,
                 // 窗体为了容纳 7 个选项卡会被撑宽，分组框跟着变宽才不会右侧留白
