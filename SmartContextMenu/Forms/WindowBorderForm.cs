@@ -31,6 +31,13 @@ namespace SmartContextMenu.Forms
     {
         private const int SW_SHOWNOACTIVATE = 4;
 
+        /// <summary>
+        /// 重渲染节流窗口（毫秒）。缩放窗口时事件极密集，每个中间尺寸都重建位图 + 重绘
+        /// 会把单核吃满；这个窗口内改为拉伸现有位图顶上，等尺寸稳定后再渲染清晰边框。
+        /// 100ms 的兜底定时器保证最终一定会渲染出清晰结果。
+        /// </summary>
+        private const int RenderThrottleMs = 40;
+
         private Bitmap _surface;
         private int _surfaceWidth;
         private int _surfaceHeight;
@@ -42,6 +49,7 @@ namespace SmartContextMenu.Forms
 
         private string _appearanceKey;
         private bool _visible;
+        private int _lastRenderTick;
 
         public WindowBorderForm()
         {
@@ -91,7 +99,24 @@ namespace SmartContextMenu.Forms
             var appearanceKey = string.Concat(color.ToArgb().ToString(), "|", thickness.ToString(), "|", opacityPercent.ToString(), "|", cornerRadius.ToString("F1"));
 
             var sizeChanged = _surface == null || _surfaceWidth != width || _surfaceHeight != height;
-            var contentChanged = sizeChanged || _appearanceKey != appearanceKey;
+            var appearanceChanged = _appearanceKey != appearanceKey;
+
+            if (!sizeChanged && !appearanceChanged)
+            {
+                // 只是移动（或从隐藏恢复）：挪一下窗口就行，位图内容由系统保留，不必重传
+                ShowAt(x, y, width, height);
+                return;
+            }
+
+            var now = Environment.TickCount;
+            var throttled = sizeChanged && !appearanceChanged && _surface != null
+                            && unchecked(now - _lastRenderTick) < RenderThrottleMs;
+            if (throttled)
+            {
+                // 缩放进行中：拉伸现有位图顶上，避免每个中间尺寸都重渲染
+                ShowAt(x, y, width, height);
+                return;
+            }
 
             if (sizeChanged)
             {
@@ -104,31 +129,31 @@ namespace SmartContextMenu.Forms
                 }
             }
 
-            if (contentChanged)
-            {
-                RenderRing(color, thickness, opacityPercent, cornerRadius);
-                _appearanceKey = appearanceKey;
-            }
+            RenderRing(color, thickness, opacityPercent, cornerRadius);
+            _appearanceKey = appearanceKey;
+            _lastRenderTick = now;
 
             if (!_visible)
             {
                 User32.ShowWindow(Handle, SW_SHOWNOACTIVATE);
                 _visible = true;
-                contentChanged = true;
             }
 
-            if (contentChanged)
+            // 保持在最顶层但不抢焦点，然后提交整张位图（位置与尺寸由 Present 一并设定）
+            User32.SetWindowPos(Handle, User32.HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOREDRAW);
+            Present(x, y, width, height);
+        }
+
+        /// <summary>显示（如未显示）并把窗口挪到指定位置和尺寸，不改动位图内容。</summary>
+        private void ShowAt(int x, int y, int width, int height)
+        {
+            if (!_visible)
             {
-                // 内容变了：重新提交整张位图（UpdateLayeredWindow 同时负责位置与尺寸）
-                User32.SetWindowPos(Handle, User32.HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOREDRAW);
-                Present(x, y, width, height);
+                User32.ShowWindow(Handle, SW_SHOWNOACTIVATE);
+                _visible = true;
             }
-            else
-            {
-                // 只是移动：挪一下窗口就行，位图内容由系统保留，不必重传
-                // 拖动时 EVENT_OBJECT_LOCATIONCHANGE 触发非常频繁，这条路径是关键
-                User32.SetWindowPos(Handle, User32.HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOREDRAW);
-            }
+
+            User32.SetWindowPos(Handle, User32.HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE | SWP_NOREDRAW);
         }
 
         public void HideBorder()
@@ -297,36 +322,16 @@ namespace SmartContextMenu.Forms
             var height = _surfaceHeight;
             var stride = width * 4;
 
-            var data = _surface.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+            // 直接按预乘 ARGB 取像素：GDI+ 内部本来就是预乘存储，
+            // 用 Format32bppPArgb 读出来就是 UpdateLayeredWindow 需要的格式，
+            // 省掉原先的逐像素换算 —— 那是缩放窗口时最耗时的一步。
+            var data = _surface.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadOnly, PixelFormat.Format32bppPArgb);
             try
             {
                 var row = new byte[stride];
                 for (var y = 0; y < height; y++)
                 {
                     Marshal.Copy(IntPtr.Add(data.Scan0, y * data.Stride), row, 0, stride);
-
-                    // UpdateLayeredWindow 要求预乘 alpha；GDI+ 输出的是非预乘 BGRA
-                    for (var i = 0; i < stride; i += 4)
-                    {
-                        var a = row[i + 3];
-                        if (a == 255)
-                        {
-                            continue;
-                        }
-
-                        if (a == 0)
-                        {
-                            row[i] = 0;
-                            row[i + 1] = 0;
-                            row[i + 2] = 0;
-                            continue;
-                        }
-
-                        row[i] = (byte)(row[i] * a / 255);
-                        row[i + 1] = (byte)(row[i + 1] * a / 255);
-                        row[i + 2] = (byte)(row[i + 2] * a / 255);
-                    }
-
                     Marshal.Copy(row, 0, IntPtr.Add(_dibBits, y * stride), stride);
                 }
             }

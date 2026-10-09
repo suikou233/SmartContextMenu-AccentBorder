@@ -28,6 +28,13 @@ namespace SmartContextMenu.Utils
         private const int RefreshInterval = 100;
 
         private readonly Dictionary<IntPtr, WindowBorderForm> _borders = new Dictionary<IntPtr, WindowBorderForm>();
+
+        /// <summary>
+        /// 用户请求过边框的窗口。与 <see cref="_borders"/> 的区别是：
+        /// 当设置里把边框关掉时，_borders 会被清空，但这里保留，
+        /// 这样用户再打开边框时能立刻恢复，而不必重新置顶一次。
+        /// </summary>
+        private readonly HashSet<IntPtr> _requested = new HashSet<IntPtr>();
         private readonly Timer _timer;
         private WindowBorderSettings _settings;
         private bool _disposed;
@@ -41,14 +48,23 @@ namespace SmartContextMenu.Utils
             _timer.Start();
         }
 
-        /// <summary>设置变更后调用；如果被关闭，则清掉所有已有边框。</summary>
+        /// <summary>
+        /// 设置变更后调用。关闭时销毁现有边框但保留请求记录；
+        /// 重新打开时把请求过的窗口补回边框，否则用户必须重新置顶一次才看得到。
+        /// </summary>
         public void ApplySettings(WindowBorderSettings settings)
         {
             _settings = settings ?? new WindowBorderSettings();
 
             if (!_settings.Enabled)
             {
-                RemoveAll();
+                DestroyBorders();
+                return;
+            }
+
+            foreach (var handle in _requested.ToArray())
+            {
+                EnsureBorder(handle);
             }
         }
 
@@ -56,19 +72,19 @@ namespace SmartContextMenu.Utils
 
         public void Add(IntPtr handle)
         {
-            if (_disposed || handle == IntPtr.Zero || !_settings.Enabled || _borders.ContainsKey(handle))
+            if (_disposed || handle == IntPtr.Zero)
             {
                 return;
             }
 
-            _borders.Add(handle, new WindowBorderForm());
-
-            // 立刻摆一次位置，不用等下一次定时器
-            UpdateBorder(handle);
+            _requested.Add(handle);
+            EnsureBorder(handle);
         }
 
         public void Remove(IntPtr handle)
         {
+            _requested.Remove(handle);
+
             if (!_borders.TryGetValue(handle, out var border))
             {
                 return;
@@ -78,12 +94,35 @@ namespace SmartContextMenu.Utils
             DisposeBorder(border);
         }
 
-        public void RemoveAll()
+        /// <summary>销毁所有边框窗口，但保留请求记录（用于临时关闭边框）。</summary>
+        private void DestroyBorders()
         {
             foreach (var handle in _borders.Keys.ToArray())
             {
-                Remove(handle);
+                var border = _borders[handle];
+                _borders.Remove(handle);
+                DisposeBorder(border);
             }
+        }
+
+        /// <summary>彻底清空，连同请求记录一起（用于 Dispose）。</summary>
+        public void RemoveAll()
+        {
+            _requested.Clear();
+            DestroyBorders();
+        }
+
+        private void EnsureBorder(IntPtr handle)
+        {
+            if (_disposed || !_settings.Enabled || _borders.ContainsKey(handle))
+            {
+                return;
+            }
+
+            _borders.Add(handle, new WindowBorderForm());
+
+            // 立刻摆一次位置，不用等下一次定时器
+            UpdateBorder(handle);
         }
 
         /// <summary>
@@ -135,6 +174,13 @@ namespace SmartContextMenu.Utils
         {
             // 目标窗口已销毁
             if (!User32.IsWindow(handle))
+            {
+                Remove(handle);
+                return;
+            }
+
+            // 窗口已经不再置顶（例如被别的程序取消），边框不该继续留着
+            if (!WindowUtils.IsAlwaysOnTop(handle))
             {
                 Remove(handle);
                 return;
